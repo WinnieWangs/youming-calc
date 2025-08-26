@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>幽冥战场等级经验计算器</title>
+  <!-- React -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@mui/material@5.14.0/umd/material-ui.development.js"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+    const {
+      TextField, Button, Grid, Typography, Paper, Container,
+      Box, Card, CardContent, Divider
+    } = MaterialUI;
+
+    function ExperienceCalculator() {
+      // 状态管理
+      const [currentLevel, setCurrentLevel] = useState('');
+      const [currentExp, setCurrentExp] = useState('0');
+      const [territoryExpPerMinute, setTerritoryExpPerMinute] = useState('0');
+      const [hours, setHours] = useState('0');
+      const [challengeCount, setChallengeCount] = useState('0');
+      const [challengeExp, setChallengeExp] = useState('0');
+      const [result, setResult] = useState(null);
+      const [errors, setErrors] = useState({});
+
+      // 验证输入
+      const validateInputs = () => {
+        const newErrors = {};
+        if (!currentLevel || isNaN(currentLevel) || parseInt(currentLevel) < 135 || parseInt(currentLevel) > 455) {
+          newErrors.currentLevel = '请输入有效的等级（135-455）';
+        }
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+      };
+
+      // 获取等级所需的经验
+      const getExpForLevel = (level) => {
+        let baseExp, startLevel, step;
+        
+        if (level >= 135 && level <= 165) {
+          baseExp = 40000;
+          startLevel = 135;
+          step = 13333;
+        } else if (level >= 166 && level <= 205) {
+          baseExp = 81250;
+          startLevel = 166;
+          step = 1250;
+        } else if (level >= 206 && level <= 255) {
+          baseExp = 131000;
+          startLevel = 206;
+          step = 1000;
+        } else if (level >= 256 && level <= 305) {
+          baseExp = 181600;
+          startLevel = 256;
+          step = 1600;
+        } else if (level >= 306 && level <= 355) {
+          baseExp = 262000;
+          startLevel = 306;
+          step = 2000;
+        } else if (level >= 356 && level <= 455) {
+          baseExp = 362400;  // 修正了356级的基础经验值
+          startLevel = 356;
+          step = 2400;
+        } else {
+          return null; // 超出范围
+        }
+        
+        return baseExp + (level - startLevel) * step;
+      };
+
+      // 计算最终等级
+      const calculateFinalLevel = () => {
+        if (!validateInputs()) return;
+        
+        const level = parseInt(currentLevel);
+        const exp = parseInt(currentExp) || 0;
+        const territoryExp = (parseInt(territoryExpPerMinute) || 0) * (parseInt(hours) || 0) * 60;
+        const challengeTotalExp = (parseInt(challengeCount) || 0) * (parseInt(challengeExp) || 0);
+        let totalExpGain = territoryExp + challengeTotalExp;
+        
+        let currentTotalExp = exp;
+        let finalLevel = level;
+        
+        // 循环升级直到经验不足
+        while (true) {
+          const expNeeded = getExpForLevel(finalLevel);
+          if (expNeeded === null) break; // 超出最高等级
+          
+          if (currentTotalExp + totalExpGain >= expNeeded) {
+            // 升级
+            const expUsed = expNeeded - currentTotalExp;
+            totalExpGain -= expUsed;
+            currentTotalExp = 0;
+            finalLevel++;
+          } else {
+            // 经验不足以升级
+            currentTotalExp += totalExpGain;
+            break;
+          }
+        }
+        
+        setResult({
+          finalLevel,
+          remainingExp: currentTotalExp,
+          expNeededForNextLevel: getExpForLevel(finalLevel),
+          territoryExp,
+          challengeTotalExp,
+          totalExpGain: territoryExp + challengeTotalExp
+        });
+      };
+
+      return (
+        <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+          <Paper elevation={5} sx={{ p: 4, borderRadius: 2, boxShadow: 3 }}>
+            <Typography variant="h4" gutterBottom align="center" sx={{ mb: 4, color: '#1976d2' }}>
+              幽冥战场135级到455级经验计算器
+            </Typography>
+            
+            <Grid container spacing={3}>
+              {/* 当前等级 */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  required
+                  label="当前等级"
+                  type="number"
+                  value={currentLevel}
+                  onChange={(e) => setCurrentLevel(e.target.value)}
+                  error={!!errors.currentLevel}
+                  helperText={errors.currentLevel || "请输入135-455之间的等级"}
+                  fullWidth
+                  InputProps={{ 
+                    inputProps: { min: 135, max: 455 },
+                    startAdornment: <i className="fas fa-user" sx={{ mr: 1 }}></i>
+                  }}
+                />
+              </Grid>
+              
+              {/* 当前等级经验 */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="当前等级经验"
+                  type="number"
+                  value={currentExp}
+                  onChange={(e) => setCurrentExp(e.target.value)}
+                  helperText="不填默认为0"
+                  fullWidth
+                  InputProps={{ 
+                    inputProps: { min: 0 },
+                    startAdornment: <i className="fas fa-star" sx={{ mr: 1 }}></i>
+                  }}
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="h6" sx={{ mb: 2, color: '#666' }}>
+                  <i className="fas fa-plus-circle" sx={{ mr: 1 }}></i>经验获取
+                </Typography>
+              </Grid>
+              
+              {/* 每分钟领地获得经验 */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="每分钟领地获得经验"
+                  type="number"
+                  value={territoryExpPerMinute}
+                  onChange={(e) => setTerritoryExpPerMinute(e.target.value)}
+                  helperText="不填默认为0"
+                  fullWidth
+                  InputProps={{ 
+                    inputProps: { min: 0 },
+                    startAdornment: <i className="fas fa-landmark" sx={{ mr: 1 }}></i>
+                  }}
+                />
+              </Grid>
+              
+              {/* 小时数 */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="小时数"
+                  type="number"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  helperText="不填默认为0"
+                  fullWidth
+                  InputProps={{ 
+                    inputProps: { min: 0 },
+                    startAdornment: <i className="fas fa-clock" sx={{ mr: 1 }}></i>
+                  }}
+                />
+              </Grid>
+              
+              {/* 挑战次数 */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="挑战次数"
+                  type="number"
+                  value={challengeCount}
+                  onChange={(e) => setChallengeCount(e.target.value)}
+                  helperText="不填默认为0"
+                  fullWidth
+                  InputProps={{ 
+                    inputProps: { min: 0 },
+                    startAdornment: <i className="fas fa-trophy" sx={{ mr: 1 }}></i>
+                  }}
+                />
+              </Grid>
+              
+              {/* 一次挑战获得经验 */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="一次挑战获得经验"
+                  type="number"
+                  value={challengeExp}
+                  onChange={(e) => setChallengeExp(e.target.value)}
+                  helperText="不填默认为0"
+                  fullWidth
+                  InputProps={{ 
+                    inputProps: { min: 0 },
+                    startAdornment: <i className="fas fa-award" sx={{ mr: 1 }}></i>
+                  }}
+                />
+              </Grid>
+              
+              {/* 计算按钮 */}
+              <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  size="large"
+                  onClick={calculateFinalLevel}
+                  sx={{ 
+                    minWidth: 200,
+                    py: 1.5,
+                    fontSize: '1.1rem',
+                    '&:hover': {
+                      transform: 'scale(1.05)',
+                      transition: 'transform 0.3s ease'
+                    }
+                  }}
+                >
+                  <i className="fas fa-calculator" sx={{ mr: 2 }}></i>计算最终等级
+                </Button>
+              </Grid>
+              
+              {/* 结果展示 */}
+              {result && (
+                <Grid item xs={12} sx={{ mt: 4 }}>
+                  <Card elevation={4} sx={{ 
+                    border: '1px solid #e0e0e0',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      boxShadow: 6
+                    }
+                  }}>
+                    <CardContent sx={{ p: 3 }}>
+                      <Typography variant="h5" gutterBottom sx={{ color: '#1976d2', mb: 3 }}>
+                        <i className="fas fa-check-circle" sx={{ mr: 1 }}></i>计算结果
+                      </Typography>
+                      
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                          <Typography>
+                            领地获得经验：<strong>{result.territoryExp.toLocaleString()}</strong>
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography>
+                            挑战获得经验：<strong>{result.challengeTotalExp.toLocaleString()}</strong>
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography>
+                            总获得经验：<strong style={{ color: '#4caf50' }}>{result.totalExpGain.toLocaleString()}</strong>
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Divider sx={{ my: 2 }} />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="h6" sx={{ color: '#d32f2f' }}>
+                            最终可以达到：<strong>{result.finalLevel}</strong>级
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography>
+                            该等级剩余经验：<strong>{result.remainingExp.toLocaleString()}</strong>
+                          </Typography>
+                        </Grid>
+                        {result.expNeededForNextLevel !== null && (
+                          <Grid item xs={12} sm={6}>
+                            <Typography>
+                              距离下一级还需要：
+                              <strong>
+                                {Math.max(0, result.expNeededForNextLevel - result.remainingExp).toLocaleString()}
+                              </strong>
+                            </Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}
+            </Grid>
+          </Paper>
+        </Container>
+      );
+    }
+
+    ReactDOM.render(<ExperienceCalculator />, document.getElementById('root'));
+  </script>
+</body>
+</html>
+    
